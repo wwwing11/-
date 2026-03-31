@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>日韓旅遊換算退稅助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <!-- PWA Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        :root {
+            --primary-color: #4f46e5; /* Default Indigo 600 */
+            --primary-light: #eef2ff;
+        }
+        body { 
+            -webkit-tap-highlight-color: transparent; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+        }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        input[type="number"] { font-size: 16px; }
+        
+        /* Dynamic Primary Colors */
+        .text-primary { color: var(--primary-color); }
+        .bg-primary { background-color: var(--primary-color); }
+        .bg-primary-light { background-color: var(--primary-light); }
+        .border-primary { border-color: var(--primary-color); }
+        .ring-primary:focus { --tw-ring-color: var(--primary-color); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+<div id="app" class="max-w-md mx-auto pb-24">
+    <!-- Header / Mode Switch -->
+    <header class="sticky top-0 bg-white/80 backdrop-blur-md border-b z-10 px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-2">
+            <h1 class="text-xl font-bold text-primary">旅日韓換算</h1>
+            <button onclick="toggleColorPicker()" class="p-1 rounded-full hover:bg-slate-100 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.92 0 1.5-.72 1.5-1.5 0-.43-.17-.83-.44-1.1-.29-.3-.48-.68-.48-1.12 0-.88.72-1.6 1.6-1.6h2.82c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z"/></svg>
+            </button>
+        </div>
+        <div class="flex bg-slate-200 rounded-lg p-1">
+            <button id="btn-jp" onclick="switchMode('JP')" class="px-4 py-1 rounded-md text-sm font-medium transition-all bg-white shadow-sm">🇯🇵 日本</button>
+            <button id="btn-kr" onclick="switchMode('KR')" class="px-4 py-1 rounded-md text-sm font-medium transition-all text-slate-600">🇰🇷 韓國</button>
+        </div>
+    </header>
+
+    <!-- Color Picker Menu -->
+    <div id="color-menu" class="hidden bg-white border-b px-4 py-3 flex gap-4 justify-center animate-in slide-in-from-top duration-200">
+        <button onclick="changeTheme('#4f46e5', '#eef2ff')" class="w-8 h-8 rounded-full bg-[#4f46e5] border-2 border-white shadow-sm"></button>
+        <button onclick="changeTheme('#e11d48', '#fff1f2')" class="w-8 h-8 rounded-full bg-[#e11d48] border-2 border-white shadow-sm"></button>
+        <button onclick="changeTheme('#059669', '#ecfdf5')" class="w-8 h-8 rounded-full bg-[#059669] border-2 border-white shadow-sm"></button>
+        <button onclick="changeTheme('#d97706', '#fffbeb')" class="w-8 h-8 rounded-full bg-[#d97706] border-2 border-white shadow-sm"></button>
+        <button onclick="changeTheme('#475569', '#f1f5f9')" class="w-8 h-8 rounded-full bg-[#475569] border-2 border-white shadow-sm"></button>
+    </div>
+
+    <main class="p-4 space-y-4">
+        <!-- Live Rate Info -->
+        <div class="bg-primary-light border border-opacity-20 border-primary rounded-xl p-3 flex justify-between items-center text-xs text-primary">
+            <span>目前匯率 (1 TWD ≈ <span id="rate-display">...</span>)</span>
+            <button onclick="fetchRates()" class="underline font-bold">更新匯率</button>
+        </div>
+
+        <!-- Calculator Card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-500 mb-1">輸入金額 (<span class="currency-unit">JPY</span>)</label>
+                <input type="number" id="input-amount" oninput="calculate()" placeholder="0" class="w-full text-4xl font-bold border-none focus:ring-0 p-0 text-slate-800">
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                <div>
+                    <span class="text-xs text-slate-400 block uppercase tracking-wider">換算台幣</span>
+                    <span id="result-twd" class="text-xl font-bold text-slate-700">≈ NT$ 0</span>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-400 block uppercase tracking-wider">預計可退稅額</span>
+                    <span id="result-tax" class="text-xl font-bold text-green-600">0</span>
+                </div>
+            </div>
+
+            <div class="space-y-3 pt-2">
+                <input type="text" id="input-name" placeholder="品項名稱 (如: 藥妝)" class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 ring-primary outline-none transition-all">
+                <input type="text" id="input-note" placeholder="備註 (選填)" class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 ring-primary outline-none transition-all">
+                <button onclick="addRecord()" class="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg active:scale-[0.98] transition-all">加入消費紀錄</button>
+            </div>
+        </div>
+
+        <!-- List Section -->
+        <div class="space-y-3">
+            <div class="flex justify-between items-end px-1">
+                <h2 class="font-bold text-lg">消費紀錄</h2>
+                <div class="space-x-3">
+                    <button onclick="exportCSV()" class="text-xs text-primary font-bold">匯出 CSV</button>
+                    <button onclick="exportPDF()" class="text-xs text-primary font-bold">匯出 PDF</button>
+                </div>
+            </div>
+
+            <div id="record-list" class="space-y-3 pb-8">
+                <!-- Records list -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom Summary -->
+    <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t p-4 flex justify-between items-center safe-area-bottom shadow-[0_-10px_20px_rgba(0,0,0,0.05)] z-10">
+        <div>
+            <span class="text-[10px] text-slate-400 block uppercase font-bold tracking-tight">總花費 (估計)</span>
+            <span id="total-twd" class="text-xl font-black text-slate-800 tracking-tight">NT$ 0</span>
+        </div>
+        <div class="text-right">
+            <span class="text-[10px] text-slate-400 block uppercase font-bold tracking-tight">總退稅金額</span>
+            <span id="total-tax" class="text-xl font-black text-green-600 tracking-tight">0</span>
+        </div>
+    </footer>
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-6 z-[60]">
+    <div class="bg-white rounded-3xl w-full max-sm p-6 space-y-4 shadow-2xl">
+        <h3 class="text-xl font-bold">編輯消費紀錄</h3>
+        <input type="hidden" id="edit-id">
+        <div class="space-y-3">
+            <label class="block">
+                <span class="text-xs text-slate-400 ml-1">品項名稱</span>
+                <input type="text" id="edit-name" class="w-full border border-slate-200 rounded-xl px-4 py-2 mt-1">
+            </label>
+            <label class="block">
+                <span class="text-xs text-slate-400 ml-1">當地金額</span>
+                <input type="number" id="edit-amount" class="w-full border border-slate-200 rounded-xl px-4 py-2 mt-1">
+            </label>
+            <label class="block">
+                <span class="text-xs text-slate-400 ml-1">備註</span>
+                <input type="text" id="edit-note" class="w-full border border-slate-200 rounded-xl px-4 py-2 mt-1">
+            </label>
+        </div>
+        <div class="flex space-x-3 pt-4">
+            <button onclick="closeEdit()" class="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-600">取消</button>
+            <button onclick="saveEdit()" class="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-md">儲存修改</button>
+        </div>
+        <button id="delete-btn" class="w-full text-red-500 text-xs font-bold pt-2">刪除此筆紀錄</button>
+    </div>
+</div>
+
+<script>
+    let currentMode = 'JP'; 
+    let rates = { JPY: 4.6, KRW: 41.5 }; 
+    let records = JSON.parse(localStorage.getItem('travel_records') || '[]');
+
+    function toggleColorPicker() {
+        document.getElementById('color-menu').classList.toggle('hidden');
+    }
+
+    function changeTheme(primary, light) {
+        document.documentElement.style.setProperty('--primary-color', primary);
+        document.documentElement.style.setProperty('--primary-light', light);
+        localStorage.setItem('travel_theme', JSON.stringify({ primary, light }));
+    }
+
+    // Load saved theme
+    const savedTheme = JSON.parse(localStorage.getItem('travel_theme'));
+    if (savedTheme) changeTheme(savedTheme.primary, savedTheme.light);
+
+    async function fetchRates() {
+        const rateDisplay = document.getElementById('rate-display');
+        rateDisplay.innerText = '更新中...';
+        try {
+            const res = await fetch('https://open.er-api.com/v6/latest/TWD');
+            const data = await res.json();
+            if (data.rates) {
+                rates.JPY = data.rates.JPY;
+                rates.KRW = data.rates.KRW;
+                updateUI();
+            }
+        } catch (e) {
+            rateDisplay.innerText = '連線失敗';
+        }
+    }
+
+    function switchMode(mode) {
+        currentMode = mode;
+        const jpBtn = document.getElementById('btn-jp');
+        const krBtn = document.getElementById('btn-kr');
+        const unitLabels = document.querySelectorAll('.currency-unit');
+        
+        if (mode === 'JP') {
+            jpBtn.className = 'px-4 py-1 rounded-md text-sm font-medium bg-white shadow-sm text-slate-800';
+            krBtn.className = 'px-4 py-1 rounded-md text-sm font-medium text-slate-600';
+            unitLabels.forEach(el => el.innerText = 'JPY');
+        } else {
+            krBtn.className = 'px-4 py-1 rounded-md text-sm font-medium bg-white shadow-sm text-slate-800';
+            jpBtn.className = 'px-4 py-1 rounded-md text-sm font-medium text-slate-600';
+            unitLabels.forEach(el => el.innerText = 'KRW');
+        }
+        calculate();
+        updateUI();
+    }
+
+    function calculate() {
+        const amount = parseFloat(document.getElementById('input-amount').value) || 0;
+        const rate = currentMode === 'JP' ? rates.JPY : rates.KRW;
+        const twd = Math.round(amount / rate);
+        document.getElementById('result-twd').innerText = `≈ NT$ ${twd.toLocaleString()}`;
+        
+        let tax = 0;
+        if (currentMode === 'JP' && amount >= 5000) tax = Math.round(amount * 0.0909);
+        if (currentMode === 'KR' && amount >= 15000) tax = Math.round(amount * 0.06);
+        document.getElementById('result-tax').innerText = tax > 0 ? `${currentMode === 'JP' ? '¥' : '₩'} ${tax.toLocaleString()}` : '未達門檻';
+    }
+
+    function updateUI() {
+        document.getElementById('rate-display').innerText = (currentMode === 'JP' ? rates.JPY : rates.KRW).toFixed(2);
+        renderRecords();
+        updateTotals();
+    }
+
+    function addRecord() {
+        const amount = parseFloat(document.getElementById('input-amount').value);
+        const name = document.getElementById('input-name').value || '未命名項目';
+        const note = document.getElementById('input-note').value || '';
+        if (!amount) return;
+
+        const rate = currentMode === 'JP' ? rates.JPY : rates.KRW;
+        const twd = Math.round(amount / rate);
+        let tax = 0;
+        if (currentMode === 'JP' && amount >= 5000) tax = Math.round(amount * 0.0909);
+        if (currentMode === 'KR' && amount >= 15000) tax = Math.round(amount * 0.06);
+
+        records.unshift({ id: Date.now(), mode: currentMode, name, amount, twd, tax, note, date: new Date().toLocaleDateString() });
+        saveRecords();
+        document.getElementById('input-amount').value = '';
+        document.getElementById('input-name').value = '';
+        document.getElementById('input-note').value = '';
+        calculate();
+        updateUI();
+    }
+
+    function renderRecords() {
+        const list = document.getElementById('record-list');
+        if (records.length === 0) {
+            list.innerHTML = `<p class="text-center text-slate-400 py-12 text-sm">尚無紀錄</p>`;
+            return;
+        }
+        list.innerHTML = records.map(r => `
+            <div class="bg-white border border-slate-100 rounded-2xl p-4 flex justify-between items-center shadow-sm" onclick="openEdit(${r.id})">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-slate-100 text-slate-500">${r.mode}</span>
+                        <h4 class="font-bold text-slate-800">${r.name}</h4>
+                    </div>
+                    <p class="text-xs text-slate-400 line-clamp-1">${r.note ? '📝 ' + r.note : r.date}</p>
+                </div>
+                <div class="text-right flex flex-col items-end">
+                    <span class="font-black text-slate-700">NT$ ${r.twd.toLocaleString()}</span>
+                    <span class="text-[10px] ${r.tax > 0 ? 'text-green-600' : 'text-slate-300'} font-bold">
+                        ${r.tax > 0 ? '可退 ' + (r.mode === 'JP' ? '¥' : '₩') + r.tax.toLocaleString() : '無退稅'}
+                    </span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openEdit(id) {
+        const r = records.find(rec => rec.id === id);
+        if (!r) return;
+        document.getElementById('edit-id').value = r.id;
+        document.getElementById('edit-name').value = r.name;
+        document.getElementById('edit-amount').value = r.amount;
+        document.getElementById('edit-note').value = r.note;
+        document.getElementById('delete-btn').onclick = () => { if(confirm('刪除？')) { records = records.filter(x => x.id !== id); saveRecords(); updateUI(); closeEdit(); } };
+        document.getElementById('edit-modal').style.display = 'flex';
+    }
+
+    function closeEdit() { document.getElementById('edit-modal').style.display = 'none'; }
+
+    function saveEdit() {
+        const id = parseInt(document.getElementById('edit-id').value);
+        const idx = records.findIndex(r => r.id === id);
+        if (idx > -1) {
+            const r = records[idx];
+            r.name = document.getElementById('edit-name').value;
+            r.amount = parseFloat(document.getElementById('edit-amount').value);
+            r.note = document.getElementById('edit-note').value;
+            const rate = r.mode === 'JP' ? rates.JPY : rates.KRW;
+            r.twd = Math.round(r.amount / rate);
+            r.tax = 0;
+            if (r.mode === 'JP' && r.amount >= 5000) r.tax = Math.round(r.amount * 0.0909);
+            if (r.mode === 'KR' && r.amount >= 15000) r.tax = Math.round(r.amount * 0.06);
+            saveRecords(); updateUI(); closeEdit();
+        }
+    }
+
+    function updateTotals() {
+        const totalTwd = records.reduce((sum, r) => sum + r.twd, 0);
+        const taxJP = records.filter(r => r.mode === 'JP').reduce((sum, r) => sum + r.tax, 0);
+        const taxKR = records.filter(r => r.mode === 'KR').reduce((sum, r) => sum + r.tax, 0);
+        document.getElementById('total-twd').innerText = `NT$ ${totalTwd.toLocaleString()}`;
+        document.getElementById('total-tax').innerText = `¥${taxJP.toLocaleString()} / ₩${taxKR.toLocaleString()}`;
+    }
+
+    function saveRecords() { localStorage.setItem('travel_records', JSON.stringify(records)); }
+
+    function exportCSV() {
+        let csv = "\uFEFF日期,地區,品項,金額,台幣,退稅,備註\n";
+        records.forEach(r => csv += `${r.date},${r.mode},${r.name},${r.amount},${r.twd},${r.tax},"${r.note}"\n`);
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+        link.download = `日韓消費紀錄_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
+    }
+
+    function exportPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text("Travel Expenses Report", 14, 20);
+        doc.autoTable({ head: [['Date', 'Region', 'Item', 'Local', 'NTD', 'Tax', 'Note']], body: records.map(r => [r.date, r.mode, r.name, r.amount, r.twd, r.tax, r.note]), startY: 30 });
+        doc.save(`Expenses_${new Date().toISOString().slice(0,10)}.pdf`);
+    }
+
+    window.onload = fetchRates;
+</script>
+</body>
+</html>
