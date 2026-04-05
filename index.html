@@ -5,16 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
     <!-- GitHub Pages 分享優化 (OG Tags) -->
-    <title>日韓消費換算紀錄小工具</title>
+    <title>海外消費換算工具</title>
     <meta name="description" content="專為日韓旅遊設計的即時匯率換算與消費紀錄工具。支援退稅計算與明細匯出。">
-    <meta property="og:title" content="日韓消費換算紀錄小工具">
+    <meta property="og:title" content="海外消費換算工具">
     <meta property="og:description" content="即時匯率、退稅計算、消費清單，旅遊記帳好幫手。">
     <meta property="og:type" content="website">
     
-    <!-- 行動裝置優化 -->
+    <!-- iPhone 加入主畫面 (A2HS) 優化 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="海外換算">
     <meta name="format-detection" content="telephone=no">
+    <!-- iOS 圖示 -->
+    <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=%E6%B5%B7%E5%A4%96&background=4f46e5&color=fff&size=180">
 
     <!-- 外部資源 -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -26,10 +29,9 @@
         body { 
             -webkit-tap-highlight-color: transparent; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overscroll-behavior-y: contain; /* 防止手機瀏覽器下拉重新整理 */
+            overscroll-behavior-y: contain; 
         }
         .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
-        input[type="number"] { font-size: 16px; }
         .text-primary { color: var(--primary-color); }
         .bg-primary { background-color: var(--primary-color); }
         .bg-primary-light { background-color: var(--primary-light); }
@@ -42,8 +44,33 @@
         input:checked + .slider { background-color: var(--primary-color); }
         input:checked + .slider:before { transform: translateX(20px); }
 
-        /* 按鈕點擊反饋 */
         .btn-active:active { transform: scale(0.98); opacity: 0.9; }
+
+        /* 上方提示文字樣式 (用於顯示輸入的算式過程) */
+        #calc-process-hint { 
+            min-height: 1.25rem; 
+            font-size: 0.75rem; 
+            font-weight: 600;
+            color: #64748b; /* Slate 500 */
+        }
+        /* 主輸入顯示框 (用於顯示計算結果) */
+        #display-amount {
+            letter-spacing: -0.02em;
+        }
+
+        /* 移除原生日曆圖示，使用自定義樣式 */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            background: transparent;
+            bottom: 0;
+            color: transparent;
+            cursor: pointer;
+            height: auto;
+            left: 0;
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: auto;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
@@ -52,19 +79,18 @@
     <!-- Header -->
     <header class="sticky top-0 bg-white/80 backdrop-blur-md border-b z-10 px-4 py-3 space-y-3">
         <div class="flex justify-between items-center">
-            <h1 class="text-xl font-bold text-primary">日韓消費換算紀錄小工具</h1>
+            <h1 class="text-xl font-bold text-primary">海外消費換算工具</h1>
             <div class="flex bg-slate-200 rounded-lg p-1 shadow-inner">
                 <button id="btn-jp" onclick="switchMode('JP')" class="px-4 py-1 rounded-md text-sm font-bold transition-all bg-white shadow-sm text-slate-800">🇯🇵 日本</button>
                 <button id="btn-kr" onclick="switchMode('KR')" class="px-4 py-1 rounded-md text-sm font-bold transition-all text-slate-400">🇰🇷 韓國</button>
             </div>
         </div>
-        <!-- Export Buttons -->
         <div class="flex gap-2">
             <button onclick="exportToPDF()" class="flex-1 bg-indigo-50 text-indigo-700 text-xs font-bold py-2 rounded-lg border border-indigo-100 flex items-center justify-center gap-1 btn-active">
                 匯出 PDF
             </button>
             <button onclick="exportToCSV()" class="flex-1 bg-emerald-50 text-emerald-700 text-xs font-bold py-2 rounded-lg border border-emerald-100 flex items-center justify-center gap-1 btn-active">
-                匯出試算表 (CSV)
+                匯出 (CSV)
             </button>
         </div>
     </header>
@@ -72,15 +98,23 @@
     <main class="p-4 space-y-4">
         <!-- Rate Info -->
         <div class="bg-primary-light border border-opacity-20 border-primary rounded-xl p-3 flex justify-between items-center text-xs text-primary">
-            <span class="font-medium">即時匯率: 1 TWD ≈ <span id="rate-display" class="font-bold">載入中...</span> <span class="currency-unit">JPY</span></span>
+            <span class="font-medium text-[11px]">即時匯率: 1 TWD ≈ <span id="rate-display" class="font-bold">載入中...</span> <span class="currency-unit">JPY</span></span>
             <span class="text-[10px] opacity-60 italic">自動即時同步</span>
         </div>
 
         <!-- Main Input Card -->
         <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-4">
-            <div>
+            <div class="relative">
                 <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-widest">輸入金額 (<span class="currency-unit">JPY</span>)</label>
-                <input type="number" id="input-amount" oninput="calculate()" placeholder="0" class="w-full text-5xl font-black border-none focus:ring-0 p-0 text-slate-800 placeholder:text-slate-100 outline-none">
+                
+                <!-- 算式過程：小字顯示在上方 -->
+                <div id="calc-process-hint" class="mb-0.5"></div>
+                
+                <!-- 主顯示區：顯示加總後的結果，維持大字 -->
+                <div class="relative">
+                    <input type="text" id="hidden-input" oninput="handleInput(this)" class="absolute inset-0 w-full h-full opacity-0 z-10 cursor-text" inputmode="decimal" autofocus>
+                    <div id="display-amount" class="w-full text-5xl font-black p-0 text-slate-800 bg-transparent min-h-[1em]">0</div>
+                </div>
             </div>
             
             <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
@@ -105,8 +139,8 @@
                 </div>
             </div>
 
-            <!-- Category & Note -->
-            <div class="space-y-3 pt-2">
+            <div class="space-y-3 pt-2 border-t border-slate-50">
+                <!-- 消費分類 -->
                 <div class="relative">
                     <select id="input-category" class="w-full border border-slate-200 rounded-2xl px-4 py-4 text-sm focus:ring-2 ring-primary outline-none transition-all bg-slate-50/50 appearance-none font-bold">
                         <option value="" disabled selected>請選擇分類</option>
@@ -125,29 +159,38 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                     </div>
                 </div>
-                <input type="text" id="input-note" placeholder="備註 (選填)" class="w-full border border-slate-200 rounded-2xl px-4 py-4 text-sm focus:ring-2 ring-primary outline-none transition-all bg-slate-50/50">
+                
+                <!-- 備註與日期 (並排顯示) -->
+                <div class="flex gap-2">
+                    <input type="text" id="input-note" placeholder="備註 (選填)" class="flex-[2] border border-slate-200 rounded-2xl px-4 py-4 text-sm focus:ring-2 ring-primary outline-none transition-all bg-slate-50/50">
+                    
+                    <div class="relative flex-1">
+                        <input type="date" id="input-date" class="w-full h-full border border-slate-200 rounded-2xl px-3 py-4 text-xs font-bold focus:ring-2 ring-primary outline-none transition-all bg-slate-50/50">
+                        <!-- 自定義日期圖示遮罩 -->
+                        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-primary opacity-40">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        </div>
+                    </div>
+                </div>
+
                 <button onclick="addRecord()" class="w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-lg btn-active transition-all text-lg">
                     加入消費紀錄
                 </button>
             </div>
         </div>
 
-        <!-- History List Header -->
         <div class="flex justify-between items-center px-2 pt-4">
             <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest">歷史清單</h3>
             <button onclick="clearAllRecords()" class="text-[10px] font-bold text-red-400 uppercase">全部清空</button>
         </div>
 
-        <!-- History List -->
         <div id="record-list" class="space-y-3 pb-4"></div>
     </main>
 
-    <!-- Footer Summary (Positions Swapped) -->
     <footer class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t safe-area-bottom shadow-[0_-10px_30px_rgba(0,0,0,0.08)] z-10">
         <div class="grid grid-cols-2 divide-x divide-slate-100 py-5">
-            <!-- Left: JPY Summary -->
             <div class="px-6 flex flex-col justify-center">
-                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">日幣總累計</span>
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">外幣總累計</span>
                 <div class="flex flex-col">
                     <span id="summary-jpy-total" class="text-2xl font-black text-slate-800 leading-none">¥0</span>
                     <span class="text-[11px] font-bold text-green-600 mt-1.5 bg-green-50 px-2 py-0.5 rounded-full self-start">
@@ -155,7 +198,6 @@
                     </span>
                 </div>
             </div>
-            <!-- Right: TWD Summary -->
             <div class="px-6 text-right flex flex-col justify-center">
                 <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">台幣總累計</span>
                 <span id="total-twd" class="text-2xl font-black text-slate-800 leading-none">NT$ 0</span>
@@ -166,20 +208,25 @@
 
 <script>
     let currentMode = 'JP';
-    let rates = { JPY: 4.65, KRW: 41.8 }; // 預設值
+    let rates = { JPY: 4.65, KRW: 41.8 };
     let records = JSON.parse(localStorage.getItem('travel_expenses_local_v1') || '[]');
+    let computedAmount = 0; 
 
-    // --- 初始化 ---
     window.onload = function() {
+        // 設定預設日期為今天
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('input-date').value = today;
+        
         fetchRates();
         updateUI();
+        document.getElementById('display-amount').parentElement.onclick = () => {
+            document.getElementById('hidden-input').focus();
+        };
     };
 
-    // 依據國際匯率自動即時更新
     async function fetchRates() {
         const rateDisplay = document.getElementById('rate-display');
         try {
-            // 使用加密通訊協定 HTTPS
             const res = await fetch('https://open.er-api.com/v6/latest/TWD');
             const data = await res.json();
             if (data.rates) {
@@ -190,12 +237,10 @@
                 calculate();
             }
         } catch (e) {
-            console.warn("Rate fetch failed");
             rateDisplay.innerText = (currentMode === 'JP' ? rates.JPY : rates.KRW).toFixed(2);
         }
     }
 
-    // --- 功能邏輯 ---
     function switchMode(mode) {
         currentMode = mode;
         document.getElementById('btn-jp').className = mode === 'JP' ? 'px-4 py-1 rounded-md text-sm font-bold bg-white shadow-sm text-slate-800' : 'px-4 py-1 rounded-md text-sm font-bold text-slate-400';
@@ -203,14 +248,41 @@
         
         document.querySelectorAll('.currency-unit').forEach(el => el.innerText = mode === 'JP' ? 'JPY' : 'KRW');
         document.getElementById('tax-threshold-msg').innerText = mode === 'JP' ? '門檻: 5,000円' : '門檻: 15,000₩';
-        
         document.getElementById('rate-display').innerText = (currentMode === 'JP' ? rates.JPY : rates.KRW).toFixed(2);
         
         calculate();
     }
 
+    function handleInput(input) {
+        let rawVal = input.value;
+        rawVal = rawVal.replace(/[^0-9+\-*/().]/g, '');
+        input.value = rawVal;
+
+        const processHint = document.getElementById('calc-process-hint');
+        const displayAmount = document.getElementById('display-amount');
+
+        if (rawVal === "") {
+            computedAmount = 0;
+            processHint.innerText = "";
+            displayAmount.innerText = "0";
+            calculate();
+            return;
+        }
+
+        processHint.innerText = `算式過程: ${rawVal}`;
+
+        try {
+            const result = Function('"use strict"; return (' + rawVal + ')')();
+            if (isFinite(result)) {
+                computedAmount = result;
+                displayAmount.innerText = result.toLocaleString(undefined, { maximumFractionDigits: 2 });
+            }
+        } catch (e) {}
+        calculate();
+    }
+
     function calculate() {
-        const amount = parseFloat(document.getElementById('input-amount').value) || 0;
+        const amount = computedAmount;
         const taxEligible = document.getElementById('tax-eligible').checked;
         const rate = currentMode === 'JP' ? rates.JPY : rates.KRW;
         const twd = Math.round(amount / rate);
@@ -221,14 +293,23 @@
             if (currentMode === 'JP' && amount >= 5000) tax = Math.round(amount * 0.0909);
             if (currentMode === 'KR' && amount >= 15000) tax = Math.round(amount * 0.06);
         }
-        document.getElementById('result-tax').innerText = tax > 0 ? (currentMode === 'JP' ? '¥' : '₩') + tax.toLocaleString() : (taxEligible ? '未達門檻' : '不退稅');
+        
+        const taxEl = document.getElementById('result-tax');
+        if (taxEligible && tax === 0 && amount > 0) {
+            taxEl.innerText = '未達門檻';
+            taxEl.className = 'text-2xl font-black text-slate-300 tracking-tight';
+        } else {
+            taxEl.innerText = tax > 0 ? (currentMode === 'JP' ? '¥' : '₩') + tax.toLocaleString() : '0';
+            taxEl.className = 'text-2xl font-black text-green-600 tracking-tight';
+        }
     }
 
     function addRecord() {
-        const amount = parseFloat(document.getElementById('input-amount').value);
+        const amount = computedAmount;
         const category = document.getElementById('input-category').value;
         const note = document.getElementById('input-note').value || '';
         const taxEligible = document.getElementById('tax-eligible').checked;
+        const selectedDate = document.getElementById('input-date').value;
 
         if (!amount || amount <= 0) return;
         if (!category) { alert('請選擇分類'); return; }
@@ -241,24 +322,35 @@
             if (currentMode === 'KR' && amount >= 15000) tax = Math.round(amount * 0.06);
         }
 
+        // 格式化日期顯示 (例如 11/24)
+        const dateObj = new Date(selectedDate);
+        const displayDate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+
         const newRecord = {
             id: Date.now(),
             mode: currentMode,
             category,
-            amount,
+            amount: parseFloat(amount.toFixed(2)),
             twd,
             tax,
             note,
             taxEligible,
-            date: new Date().toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
+            date: displayDate,
+            fullDate: selectedDate // 保存完整日期以便排序或導出
         };
 
         records.unshift(newRecord);
         saveRecords();
         
-        document.getElementById('input-amount').value = '';
+        // 重置
+        document.getElementById('hidden-input').value = '';
+        document.getElementById('display-amount').innerText = '0';
+        computedAmount = 0;
+        document.getElementById('calc-process-hint').innerText = "";
         document.getElementById('input-note').value = '';
         document.getElementById('input-category').selectedIndex = 0;
+        // 日期不重置，方便連續輸入同一天的消費
+        
         calculate();
         updateUI();
     }
@@ -270,7 +362,6 @@
     }
 
     function clearAllRecords() {
-        // 使用自定義確認
         if (confirm('確定要清空所有消費紀錄嗎？')) {
             records = [];
             saveRecords();
@@ -292,7 +383,7 @@
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-[9px] px-2 py-0.5 rounded-full font-black bg-slate-100 text-slate-400 uppercase tracking-tighter">${r.date}</span>
-                            <h4 class="font-bold text-slate-800 truncate">${r.category}</h4>
+                            <h4 class="font-bold text-slate-800 truncate text-[15px]">${r.category}</h4>
                         </div>
                         <div class="flex items-center gap-2">
                              <span class="text-sm font-black text-slate-500">${r.mode === 'JP' ? '¥' : '₩'}${r.amount.toLocaleString()}</span>
@@ -316,51 +407,40 @@
         }
 
         const totalTwd = records.reduce((sum, r) => sum + r.twd, 0);
-        const jpyRecords = records.filter(r => r.mode === 'JP');
-        const totalJpy = jpyRecords.reduce((sum, r) => sum + r.amount, 0);
-        const totalJpyTax = jpyRecords.reduce((sum, r) => sum + r.tax, 0);
+        const currentCurrencyRecords = records.filter(r => r.mode === currentMode);
+        const totalLocal = currentCurrencyRecords.reduce((sum, r) => sum + r.amount, 0);
+        const totalLocalTax = currentCurrencyRecords.reduce((sum, r) => sum + r.tax, 0);
 
         document.getElementById('total-twd').innerText = `NT$ ${totalTwd.toLocaleString()}`;
-        document.getElementById('summary-jpy-total').innerText = `¥${totalJpy.toLocaleString()}`;
-        document.getElementById('summary-jpy-tax-val').innerText = `¥${totalJpyTax.toLocaleString()}`;
+        document.getElementById('summary-jpy-total').innerText = (currentMode === 'JP' ? '¥' : '₩') + totalLocal.toLocaleString();
+        document.getElementById('summary-jpy-tax-val').innerText = (currentMode === 'JP' ? '¥' : '₩') + totalLocalTax.toLocaleString();
     }
 
-    // 匯出 PDF
     window.exportToPDF = function() {
         if (records.length === 0) return alert('清單內目前無資料');
         try {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
-            doc.text("Travel Expenses Report", 14, 20);
-            const body = records.map(r => [r.date, r.mode, r.category, r.note || '-', `${r.mode === 'JP' ? '¥' : '₩'}${r.amount}`, `NT$ ${r.twd}`]);
+            doc.text("Overseas Expenses Report", 14, 20);
+            const body = records.map(r => [r.fullDate || r.date, r.mode, r.category, r.note || '-', `${r.mode === 'JP' ? '¥' : '₩'}${r.amount}`, `NT$ ${r.twd}`]);
             doc.autoTable({
-                startY: 30,
-                head: [['Date', 'Loc', 'Type', 'Note', 'Local', 'TWD']],
-                body: body
+                startY: 30, head: [['Date', 'Loc', 'Type', 'Note', 'Local', 'TWD']], body: body
             });
-            doc.save(`travel-expenses-${new Date().getTime()}.pdf`);
-        } catch (err) {
-            console.error("PDF generation error:", err);
-            alert("匯出 PDF 時發生錯誤");
-        }
+            doc.save(`expenses-${new Date().getTime()}.pdf`);
+        } catch (err) { alert("匯出 PDF 時發生錯誤"); }
     };
 
-    // 匯出 CSV
     window.exportToCSV = function() {
         if (records.length === 0) return alert('清單內目前無資料');
         let csvContent = "\uFEFFDate,Location,Category,Note,Local Amount,TWD Estimated\n";
         records.forEach(r => {
-            csvContent += `${r.date},${r.mode},${r.category},${r.note || '-'},${r.amount},${r.twd}\n`;
+            csvContent += `${r.fullDate || r.date},${r.mode},${r.category},${r.note || '-'},${r.amount},${r.twd}\n`;
         });
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `travel-expenses-${new Date().getTime()}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
+        link.href = URL.createObjectURL(blob);
+        link.download = `expenses-${new Date().getTime()}.csv`;
         link.click();
-        document.body.removeChild(link);
     };
 </script>
 </body>
