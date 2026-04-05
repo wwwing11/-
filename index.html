@@ -76,7 +76,8 @@
                 <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-widest">輸入金額 (<span class="currency-unit">JPY</span>)</label>
                 <div id="calc-process-hint" class="mb-0.5"></div>
                 <div class="relative" onclick="document.getElementById('hidden-input').focus()">
-                    <input type="text" id="hidden-input" oninput="handleInput(this)" class="absolute inset-0 w-full h-full opacity-0 z-10 cursor-text" inputmode="decimal" autofocus>
+                    <!-- 修改為 inputmode="text" 以支援加減乘除符號輸入 -->
+                    <input type="text" id="hidden-input" oninput="handleInput(this)" class="absolute inset-0 w-full h-full opacity-0 z-10 cursor-text" inputmode="text" autofocus>
                     <div id="display-amount" class="w-full text-5xl font-black p-0 text-slate-800 bg-transparent min-h-[1em]">0</div>
                 </div>
             </div>
@@ -185,10 +186,11 @@
         document.getElementById('summary-currency-label').innerText = mode === 'JP' ? '日幣總累計' : '韓幣總累計';
         
         calculate();
-        updateUI(); // 切換模式時重新過濾底部累計
+        updateUI();
     }
 
     function handleInput(input) {
+        // 過濾非法字符，僅保留數字及運算符號
         let rawVal = input.value.replace(/[^0-9+\-*/().]/g, '');
         input.value = rawVal;
         const processHint = document.getElementById('calc-process-hint');
