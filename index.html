@@ -9,7 +9,7 @@
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="日韓換算"> <link rel="apple-touch-icon" href="app-icon">
+    <meta name="apple-mobile-web-app-title" content="日韓換算"> <link rel="apple-touch-icon" href="app-icon.png">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -108,7 +108,8 @@
                     <option value="" disabled selected>請選擇分類</option>
                     <option value="票券">🎟️ 票券</option><option value="交通">🚃 交通</option><option value="飲食">🍱 飲食</option>
                     <option value="服飾">👕 服飾</option><option value="藥妝">💊 藥妝</option><option value="生活雜貨">🛍️ 生活雜貨</option>
-                    <option value="伴手禮">🎁 伴手禮</option><option value="紀念品">⛩️ 紀念品</option><option value="住宿">🏨 住宿</option><option value="其他">✨ 其他</option>
+                    <option value="伴手禮">🎁 伴手禮</option><option value="紀念品">⛩️ 紀念品</option><option value="住宿">🏨 住宿</option>
+                    <option value="其他">✨ 其他</option>
                 </select>
                 
                 <input type="text" id="input-note" placeholder="備註 (選填)" class="w-full border border-slate-200 rounded-2xl px-4 py-4 text-sm focus:ring-2 ring-primary outline-none transition-all bg-slate-50/50">
@@ -135,7 +136,7 @@
     <footer class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t safe-area-bottom shadow-[0_-10px_30px_rgba(0,0,0,0.08)] z-10">
         <div class="grid grid-cols-2 divide-x divide-slate-100 py-5">
             <div class="px-6 flex flex-col justify-center text-left">
-                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">JPY/KRW 累計</span>
+                <span id="summary-currency-label" class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">日幣總累計</span>
                 <span id="summary-jpy-total" class="text-2xl font-black text-slate-800 leading-none">¥0</span>
                 <span class="text-[11px] font-bold text-green-600 mt-1.5 bg-green-50 px-2 py-0.5 rounded-full self-start">預計退 <span id="summary-jpy-tax-val">¥0</span></span>
             </div>
@@ -179,7 +180,12 @@
         document.querySelectorAll('.currency-unit').forEach(el => el.innerText = mode === 'JP' ? 'JPY' : 'KRW');
         document.getElementById('tax-threshold-msg').innerText = mode === 'JP' ? '門檻: 5,000円' : '門檻: 15,000₩';
         document.getElementById('rate-display').innerText = (currentMode === 'JP' ? rates.JPY : rates.KRW).toFixed(2);
+        
+        // 更新底部標籤文字
+        document.getElementById('summary-currency-label').innerText = mode === 'JP' ? '日幣總累計' : '韓幣總累計';
+        
         calculate();
+        updateUI(); // 切換模式時重新過濾底部累計
     }
 
     function handleInput(input) {
